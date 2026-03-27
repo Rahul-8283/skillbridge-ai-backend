@@ -6,6 +6,7 @@ const cookieParser = require('cookie-parser');
 const mainRouter = require('./routes');
 const { errorHandler } = require('./middlewares/errorHandler');
 const { rateLimiter } = require('./middlewares/rateLimiter');
+require('express-async-errors');
 
 const app = express();
 
