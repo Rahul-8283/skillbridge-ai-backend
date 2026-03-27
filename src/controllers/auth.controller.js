@@ -6,8 +6,8 @@ const { redisClient } = require('../config/redis');
 const AppError = require('../utils/AppError');
 
 const generateTokens = (payload) => {
-  const accessToken = jwt.sign(payload, process.env.JWT_ACCESS_SECRET, { expiresIn: process.env.JWT_ACCESS_EXPIRES_IN });
-  const refreshToken = jwt.sign(payload, process.env.JWT_REFRESH_SECRET, { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN });
+  const accessToken = jwt.sign(payload, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '15m' });
+  const refreshToken = jwt.sign(payload, process.env.REFRESH_TOKEN_SECRET, { expiresIn: '30d' });
   return { accessToken, refreshToken };
 };
 
@@ -109,7 +109,7 @@ exports.refresh = async (req, res, next) => {
     }
 
     try {
-        const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+        const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
         const storedToken = await redisClient.get(decoded.id);
 
         if (!storedToken || storedToken !== refreshToken) {
@@ -150,7 +150,7 @@ exports.logout = async (req, res, next) => {
     }
 
     try {
-        const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+        const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
         await redisClient.del(decoded.id);
     } catch (err) {
         // Ignore errors if token is invalid

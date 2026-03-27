@@ -11,7 +11,7 @@ const app = express();
 
 // Middlewares
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+  origin: process.env.MODE_F === 'development' ? process.env.CLIENT_URL_DEV : process.env.CLIENT_URL_PRO,
   credentials: true,
 }));
 app.use(helmet());
