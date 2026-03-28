@@ -51,7 +51,10 @@ const SeekerProfile = require('../models/seekerProfile.model');
 exports.getMyJobs = async (req, res, next) => {
   try {
     const jobs = await Job.find({ postedBy: req.user._id }).sort({ createdAt: -1 });
-    res.status(200).json(jobs);
+    res.status(200).json({
+      status: 'success',
+      data: jobs
+    });
   } catch (err) {
     next(err);
   }
@@ -72,7 +75,10 @@ exports.getCandidates = async (req, res, next) => {
       });
     }
 
-    res.status(200).json(enrichedSeekers);
+    res.status(200).json({
+      status: 'success',
+      data: enrichedSeekers
+    });
   } catch (err) {
     next(err);
   }
