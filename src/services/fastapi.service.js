@@ -3,9 +3,13 @@ const FormData = require('form-data');
 const fs = require('fs');
 
 const getBaseUrl = () => {
-  return process.env.MODE_S === 'production' 
+  let url = process.env.MODE_S === 'production' 
     ? process.env.FASTAPI_URL_PRO 
     : (process.env.FASTAPI_URL_DEV || 'http://127.0.0.1:8000');
+  if (url && url.endsWith('/')) {
+    url = url.slice(0, -1);
+  }
+  return url;
 };
 
 const fastapi = axios.create({
