@@ -36,9 +36,7 @@ const errorHandler = (err, req, res, next) => {
   err.statusCode = err.statusCode || 500;
   err.status = err.status || 'error';
 
-  if (process.env.NODE_ENV === 'development') {
-    sendErrorDev(err, res);
-  } else if (process.env.NODE_ENV === 'production') {
+  if (process.env.NODE_ENV === 'production') {
     let error = { ...err };
     error.message = err.message;
 
@@ -46,6 +44,9 @@ const errorHandler = (err, req, res, next) => {
     if (error.name === 'TokenExpiredError') error = handleJWTExpiredError();
 
     sendErrorProd(error, res);
+  } else {
+    // Default to development-like error messages for better debugging if NODE_ENV is not 'production'
+    sendErrorDev(err, res);
   }
 };
 

@@ -73,7 +73,7 @@ exports.login = async (req, res, next) => {
     
     if (!user) {
       console.log('User not found:', email);
-      return next(new AppError('Incorrect email or password', 401));
+      return next(new AppError('User not found with this email', 401));
     }
 
     console.log('User found, comparing passwords...');
@@ -83,7 +83,7 @@ exports.login = async (req, res, next) => {
     
     if (!isPasswordValid) {
       console.log('Password comparison failed for user:', email);
-      return next(new AppError('Incorrect email or password', 401));
+      return next(new AppError('Incorrect password. Please try again.', 401));
     }
 
     console.log('Password valid, generating tokens...');
