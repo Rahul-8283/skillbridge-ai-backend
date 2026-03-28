@@ -14,7 +14,7 @@ const userSchema = new mongoose.Schema({
   password: {
     type: String,
     required: [true, 'Please provide a password'],
-    minlength: 8,
+    minlength: 6,
     select: false,
   },
   role: {
@@ -25,6 +25,18 @@ const userSchema = new mongoose.Schema({
   createdAt: {
     type: Date,
     default: Date.now,
+  },
+});
+
+userSchema.set('toJSON', {
+  transform: (document, returnedObject) => {
+    return {
+      id: returnedObject._id.toString(),
+      name: returnedObject.name,
+      email: returnedObject.email,
+      role: returnedObject.role,
+      createdAt: returnedObject.createdAt,
+    };
   },
 });
 

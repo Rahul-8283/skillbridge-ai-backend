@@ -1,3 +1,4 @@
+require('express-async-errors');
 const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
@@ -6,7 +7,6 @@ const cookieParser = require('cookie-parser');
 const mainRouter = require('./routes');
 const { errorHandler } = require('./middlewares/errorHandler');
 const { rateLimiter } = require('./middlewares/rateLimiter');
-require('express-async-errors');
 
 const app = express();
 
