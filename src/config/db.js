@@ -3,13 +3,14 @@ const mongoose = require('mongoose');
 const connectDB = async () => {
   try {
     await mongoose.connect(process.env.MONGO_URI, {
-      serverSelectionTimeoutMS: 30000, // 30 second timeout for server selection
-      socketTimeoutMS: 45000, // 45 second timeout for socket connection
+      serverSelectionTimeoutMS: 30000, 
+      socketTimeoutMS: 45000, 
     });
     console.log('MongoDB connected successfully');
   } catch (error) {
     console.error('MongoDB connection failed:', error.message);
-    process.exit(1);
+    // Don't exit process, let it try to reconnect or just fail requests
+    console.log('Server continuing to run... (Database might be unavailable)');
   }
 };
 

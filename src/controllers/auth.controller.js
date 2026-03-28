@@ -59,7 +59,7 @@ exports.register = async (req, res, next) => {
 exports.login = async (req, res, next) => {
   try {
     console.log('Login attempt with:', { email: req.body.email });
-    
+
     const { error, value } = loginSchema.validate(req.body);
     if (error) {
       console.log('Validation error:', error.details[0].message);
@@ -70,17 +70,17 @@ exports.login = async (req, res, next) => {
 
     // Find user and explicitly select password
     const user = await User.findOne({ email }).select('+password');
-    
+
     if (!user) {
       console.log('User not found:', email);
       return next(new AppError('User not found with this email', 401));
     }
 
     console.log('User found, comparing passwords...');
-    
+
     // Compare passwords
     const isPasswordValid = await bcrypt.compare(password, user.password);
-    
+
     if (!isPasswordValid) {
       console.log('Password comparison failed for user:', email);
       return next(new AppError('Incorrect password. Please try again.', 401));
