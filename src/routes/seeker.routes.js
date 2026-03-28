@@ -19,6 +19,9 @@ router.get('/resume', seekerController.getResumes);
 router.post('/resume/upload', upload.single('resume'), seekerController.uploadResume);
 router.delete('/resume/:id', seekerController.deleteResume);
 
+// Job Matching
+router.get('/jobs/matches', seekerController.getJobMatches);
+
 // Job Applications
 router.get('/applications', seekerController.getApplications);
 router.post('/applications', seekerController.applyForJob);

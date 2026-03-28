@@ -183,3 +183,30 @@ exports.getApplicationDetails = async (req, res, next) => {
     next(err);
   }
 };
+
+exports.getJobMatches = async (req, res, next) => {
+  try {
+    // Get latest resume
+    const resume = await Resume.findOne({ userId: req.user._id }).sort('-createdAt');
+    if (!resume) {
+      return res.status(200).json({
+        status: 'success',
+        data: { matches: [] }
+      });
+    }
+
+    const matches = await fastapiService.matchJobs(req.user._id.toString(), resume.fileUrl);
+    
+    res.status(200).json({
+      status: 'success',
+      data: matches
+    });
+  } catch (err) {
+    console.error("Match Jobs Error:", err);
+    // Return empty results instead of 500
+    res.status(200).json({
+      status: 'success',
+      data: { matches: [] }
+    });
+  }
+};

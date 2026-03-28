@@ -14,6 +14,7 @@ const getBaseUrl = () => {
 
 const fastapi = axios.create({
   baseURL: getBaseUrl(),
+  timeout: 120000, // 2 minutes for Render cold starts
 });
 
 fastapi.interceptors.request.use(config => {

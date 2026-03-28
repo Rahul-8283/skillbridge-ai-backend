@@ -73,15 +73,14 @@ exports.createJob = async (req, res, next) => {
       postedBy: req.user._id
     });
 
-    try {
-      await fastapiService.createJob({
-        job_id: job._id.toString(),
-        skills_text: `${job.title} ${job.description} ${job.requirements}`,
-        title: job.title
-      });
-    } catch (fastapiErr) {
+    // Fire-and-forget to prevent blocking the response during slow FastAPI starts
+    fastapiService.createJob({
+      job_id: job._id.toString(),
+      skills_text: `${job.title} ${job.description} ${job.skillsRequired?.join(' ')}`,
+      title: job.title
+    }).catch(fastapiErr => {
       console.error("FastAPI Job Sync Failed:", fastapiErr.message);
-    }
+    });
 
     res.status(201).json({
       status: 'success',

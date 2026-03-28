@@ -14,7 +14,9 @@ const providerProfileSchema = new mongoose.Schema({
   companySize: String,
   location: String,
   contactEmail: String,
-  logo: String
+  logo: String,
+  selectedCandidates: [String],
+  rejectedCandidates: [String]
 }, { timestamps: true });
 
 module.exports = mongoose.model('ProviderProfile', providerProfileSchema);
