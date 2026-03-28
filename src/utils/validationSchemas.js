@@ -40,7 +40,7 @@ const seekerProfileSchema = Joi.object({
   location: Joi.string().allow(''),
   salaryExpectation: Joi.string().allow(''),
   availability: Joi.string().valid('immediately', '2weeks', '1month', '2months')
-}).options({ allowUnknown: true });
+}).options({ stripUnknown: true });
 
 const providerProfileSchema = Joi.object({
   companyName: Joi.string().allow(''),
@@ -51,7 +51,7 @@ const providerProfileSchema = Joi.object({
   location: Joi.string().allow(''),
   contactEmail: Joi.string().email().allow(''),
   logo: Joi.string().uri().allow('')
-}).options({ allowUnknown: true });
+}).options({ stripUnknown: true });
 
 const jobSchema = Joi.object({
   title: Joi.string().required(),

@@ -12,4 +12,9 @@ router.get('/profile', providerController.getProfile);
 router.post('/profile', providerController.upsertProfile);
 router.put('/profile', providerController.upsertProfile);
 
+// Dashboard and candidate management
+router.get('/my-jobs', providerController.getMyJobs);
+router.get('/candidates', providerController.getCandidates);
+router.put('/candidates/status', providerController.updateCandidateStatus);
+
 module.exports = router;
