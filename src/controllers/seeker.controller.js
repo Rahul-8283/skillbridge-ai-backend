@@ -34,7 +34,7 @@ exports.upsertProfile = async (req, res, next) => {
     const profile = await SeekerProfile.findOneAndUpdate(
       { userId: req.user._id },
       { ...value, userId: req.user._id },
-      { new: true, upsate: true, upsert: true, runValidators: true }
+      { new: true, upsert: true, runValidators: true }
     );
 
     res.status(200).json({

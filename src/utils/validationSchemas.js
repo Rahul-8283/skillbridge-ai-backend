@@ -33,27 +33,25 @@ const refreshTokenSchema = Joi.object({
 });
 
 const seekerProfileSchema = Joi.object({
-  experienceLevel: Joi.string().valid('entry', 'intermediate', 'senior'),
-  experience: Joi.array().items(Joi.object({
-    title: Joi.string().required(),
-    company: Joi.string().required(),
-    duration: Joi.string().required(),
-    description: Joi.string().allow('')
-  })),
-  skills: Joi.array().items(Joi.string()),
-  education: Joi.array().items(Joi.object({
-    institution: Joi.string().required(),
-    degree: Joi.string().required(),
-    year: Joi.string().required()
-  })),
-  bio: Joi.string().allow(''),
+  resume: Joi.string().allow(''),
+  skills: Joi.string().allow(''),
+  experience: Joi.string().allow(''),
+  education: Joi.string().allow(''),
   location: Joi.string().allow(''),
-  socialLinks: Joi.object({
-    linkedin: Joi.string().uri().allow(''),
-    github: Joi.string().uri().allow(''),
-    portfolio: Joi.string().uri().allow('')
-  })
-});
+  salaryExpectation: Joi.string().allow(''),
+  availability: Joi.string().valid('immediately', '2weeks', '1month', '2months')
+}).options({ allowUnknown: true });
+
+const providerProfileSchema = Joi.object({
+  companyName: Joi.string().allow(''),
+  companyDescription: Joi.string().allow(''),
+  companyWebsite: Joi.string().uri().allow(''),
+  industry: Joi.string().allow(''),
+  companySize: Joi.string().allow(''),
+  location: Joi.string().allow(''),
+  contactEmail: Joi.string().email().allow(''),
+  logo: Joi.string().uri().allow('')
+}).options({ allowUnknown: true });
 
 const jobSchema = Joi.object({
   title: Joi.string().required(),
@@ -75,6 +73,7 @@ module.exports = {
   loginSchema,
   refreshTokenSchema,
   seekerProfileSchema,
+  providerProfileSchema,
   jobSchema,
   jobApplicationSchema,
 };

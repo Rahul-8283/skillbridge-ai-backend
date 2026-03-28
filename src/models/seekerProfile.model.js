@@ -7,33 +7,16 @@ const seekerProfileSchema = new mongoose.Schema({
     required: true,
     unique: true
   },
-  experienceLevel: {
-    type: String,
-    enum: ['entry', 'intermediate', 'senior'],
-    default: 'entry'
-  },
-  experience: [
-    {
-      title: String,
-      company: String,
-      duration: String,
-      description: String
-    }
-  ],
-  skills: [String],
-  education: [
-    {
-      institution: String,
-      degree: String,
-      year: String
-    }
-  ],
-  bio: String,
+  resume: String, // String for URL or text for now
+  skills: String, // Comma-separated or text as in frontend
+  experience: String, // "Years of Experience"
+  education: String, // Textarea content
   location: String,
-  socialLinks: {
-    linkedin: String,
-    github: String,
-    portfolio: String
+  salaryExpectation: String,
+  availability: {
+    type: String,
+    enum: ['immediately', '2weeks', '1month', '2months'],
+    default: 'immediately'
   }
 }, { timestamps: true });
 
