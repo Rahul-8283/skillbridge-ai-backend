@@ -1,6 +1,7 @@
 const Job = require('../models/job.model');
 const AppError = require('../utils/AppError');
 const { jobSchema } = require('../utils/validationSchemas');
+const fastapiService = require('../services/fastapi.service');
 
 exports.getAllJobs = async (req, res, next) => {
   try {
@@ -71,6 +72,16 @@ exports.createJob = async (req, res, next) => {
       ...value,
       postedBy: req.user._id
     });
+
+    try {
+      await fastapiService.createJob({
+        job_id: job._id.toString(),
+        skills_text: `${job.title} ${job.description} ${job.requirements}`,
+        title: job.title
+      });
+    } catch (fastapiErr) {
+      console.error("FastAPI Job Sync Failed:", fastapiErr.message);
+    }
 
     res.status(201).json({
       status: 'success',

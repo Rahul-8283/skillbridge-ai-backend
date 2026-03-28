@@ -3,6 +3,7 @@ const Resume = require('../models/resume.model');
 const JobApplication = require('../models/jobApplication.model');
 const AppError = require('../utils/AppError');
 const { seekerProfileSchema, jobApplicationSchema } = require('../utils/validationSchemas');
+const fastapiService = require('../services/fastapi.service');
 
 // Seeker Profile
 exports.getProfile = async (req, res, next) => {
@@ -65,18 +66,32 @@ exports.uploadResume = async (req, res, next) => {
       return next(new AppError('Please upload a file', 400));
     }
 
-    // Since we don't have Cloudinary setup yet, we'll store the local path or a mock URL
-    // For a real app, you'd upload to Cloudinary/S3 here
+    // Call FastAPI matching
+    let analysisData = null;
+    let fallbackMatches = [];
+    try {
+      const matchResponse = await fastapiService.matchJobs(req.user._id.toString(), req.file.path);
+      analysisData = matchResponse;
+      fallbackMatches = matchResponse.matches || [];
+    } catch(err) {
+      console.error("FastAPI matching failed:", err);
+    }
+
     const newResume = await Resume.create({
       userId: req.user._id,
       filename: req.file.originalname,
-      fileUrl: req.file.path, // In a real app, this would be the URL from Cloudinary
-      fileType: req.file.mimetype
+      fileUrl: req.file.path,
+      fileType: req.file.mimetype,
+      analysis: analysisData // Save whatever we get
     });
 
     res.status(201).json({
       status: 'success',
-      data: newResume
+      data: {
+        resume: newResume,
+        analysis: analysisData,
+        matches: fallbackMatches
+      }
     });
   } catch (err) {
     next(err);
