@@ -14,14 +14,7 @@ const learningPlanSchema = new mongoose.Schema({
   targetRole: String,
   overallDays: Number,
   hoursPerDay: Number,
-  skills: [{
-    keyword: String,
-    total_days: Number,
-    summary: String,
-    video_url: String, // From FastAPI (YouTube)
-    github_url: String, // From FastAPI (GitHub)
-    roadmap: [String]
-  }],
+  skills: [mongoose.Schema.Types.Mixed], // Allow flexible structure from FastAPI (including links, videos, etc.)
   completedModules: [Number], // IDs or indices
   status: {
     type: String,
