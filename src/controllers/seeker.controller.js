@@ -50,7 +50,7 @@ exports.upsertProfile = async (req, res, next) => {
 // Resumes
 exports.getResumes = async (req, res, next) => {
   try {
-    const resumes = await Resume.find({ userId: req.user._id });
+    const resumes = await Resume.find({ userId: req.user._id }).sort('-createdAt');
     res.status(200).json({
       status: 'success',
       data: resumes

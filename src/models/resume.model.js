@@ -18,6 +18,10 @@ const resumeSchema = new mongoose.Schema({
     type: String,
     default: 'application/pdf'
   },
+  analysis: {
+    type: mongoose.Schema.Types.Mixed,
+    default: null
+  },
   uploadedAt: {
     type: Date,
     default: Date.now
