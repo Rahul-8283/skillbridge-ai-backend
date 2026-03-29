@@ -4,6 +4,24 @@ const Job = require('../models/job.model');
 const fastapiService = require('../services/fastapi.service');
 const AppError = require('../utils/AppError');
 
+const extractUpstreamError = (err, defaultMessage) => {
+    const status = err?.response?.status;
+    const detail = err?.response?.data?.detail;
+    const message = err?.response?.data?.message;
+
+    if (status === 429) {
+        return {
+            statusCode: 503,
+            message: 'AI service quota limit reached. Please try again later or refresh API credits.'
+        };
+    }
+
+    return {
+        statusCode: status || 502,
+        message: detail || message || err?.message || defaultMessage
+    };
+};
+
 const normalizeRoadmapSkills = (skills = []) => {
     if (!Array.isArray(skills)) return [];
 
@@ -75,11 +93,18 @@ exports.generateRoadmap = async (req, res, next) => {
         }
 
         // Generate via FastAPI
-        const roadmapData = await fastapiService.generateRoadmap({
-            user_id: userId,
-            job_id: jobId,
-            hours_per_day: hoursPerDay
-        });
+        let roadmapData;
+        try {
+            roadmapData = await fastapiService.generateRoadmap({
+                user_id: userId,
+                job_id: jobId,
+                hours_per_day: hoursPerDay
+            });
+        } catch (err) {
+            console.error('FastAPI roadmap generation failed:', err.response?.data || err.message);
+            const upstream = extractUpstreamError(err, 'Failed to generate learning roadmap.');
+            return next(new AppError(upstream.message, upstream.statusCode));
+        }
 
         // Try to find job, but don't fail if it doesn't exist
         let jobTitle = 'Target Role';

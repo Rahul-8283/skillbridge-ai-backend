@@ -73,8 +73,16 @@ exports.uploadResume = async (req, res, next) => {
       const matchResponse = await fastapiService.matchJobs(req.user._id.toString(), req.file.path);
       analysisData = matchResponse;
       fallbackMatches = matchResponse.matches || [];
-    } catch(err) {
-      console.error("FastAPI matching failed:", err);
+    } catch (err) {
+      // Log the error for diagnostics (quota, API key, network issues, etc.)
+      const status = err?.response?.status;
+      const detail = err?.response?.data?.detail;
+      console.error('FastAPI matching failed - Status:', status, 'Detail:', detail || err.message);
+      
+      // Silently continue with null analysis and empty matches as fallback
+      // Resume will still be saved, just without AI analysis
+      analysisData = null;
+      fallbackMatches = [];
     }
 
     const newResume = await Resume.create({
@@ -82,7 +90,7 @@ exports.uploadResume = async (req, res, next) => {
       filename: req.file.originalname,
       fileUrl: req.file.path,
       fileType: req.file.mimetype,
-      analysis: analysisData // Save whatever we get
+      analysis: analysisData
     });
 
     res.status(201).json({
