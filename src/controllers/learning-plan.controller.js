@@ -4,6 +4,47 @@ const Job = require('../models/job.model');
 const fastapiService = require('../services/fastapi.service');
 const AppError = require('../utils/AppError');
 
+const normalizeRoadmapSkills = (skills = []) => {
+    if (!Array.isArray(skills)) return [];
+
+    return skills.map((skillItem) => {
+        const item = skillItem && typeof skillItem === 'object' ? skillItem : {};
+        const youtubeItems = Array.isArray(item.youtube) ? item.youtube : [];
+        const githubItems = Array.isArray(item.github) ? item.github : [];
+        const resources = Array.isArray(item.resources) ? item.resources : [];
+
+        const normalizedYoutubeUrl =
+            item.youtube_url ||
+            item.video_url ||
+            item.videoUrl ||
+            item.youtubeUrl ||
+            youtubeItems[0]?.url ||
+            null;
+
+        const normalizedGithubUrl =
+            item.github_url ||
+            item.githubUrl ||
+            item.github_repo_url ||
+            githubItems[0]?.url ||
+            githubItems[0]?.html_url ||
+            null;
+
+        const normalizedGithubRepos = Array.isArray(item.github_repos)
+            ? item.github_repos
+            : githubItems;
+
+        return {
+            ...item,
+            skill: item.skill || item.keyword || item.name || 'Unnamed Skill',
+            youtube_url: normalizedYoutubeUrl,
+            github_url: normalizedGithubUrl,
+            github_repos: normalizedGithubRepos,
+            resources,
+            roadmap: Array.isArray(item.roadmap) ? item.roadmap : []
+        };
+    });
+};
+
 exports.generateRoadmap = async (req, res, next) => {
     try {
         const { userId, jobId, hoursPerDay = 2 } = req.body;
@@ -55,6 +96,8 @@ exports.generateRoadmap = async (req, res, next) => {
         }
 
         // Map and Save to MongoDB
+        const normalizedSkills = normalizeRoadmapSkills(roadmapData.skills);
+
         const newPlan = await LearningPlan.create({
             userId: new mongoose.Types.ObjectId(userId),
             jobId,
@@ -62,7 +105,7 @@ exports.generateRoadmap = async (req, res, next) => {
             targetRole: roadmapData.target_role || jobTitle,
             overallDays: roadmapData.overall_days,
             hoursPerDay,
-            skills: roadmapData.skills || [],
+            skills: normalizedSkills,
             status: 'active'
         });
 
