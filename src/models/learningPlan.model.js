@@ -7,8 +7,7 @@ const learningPlanSchema = new mongoose.Schema({
     required: true
   },
   jobId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Job',
+    type: mongoose.Schema.Types.Mixed, // Allow both string IDs (mock) and ObjectId
     required: true
   },
   title: String,

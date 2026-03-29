@@ -16,6 +16,7 @@ router.put('/profile', seekerController.upsertProfile);
 
 // Resumes
 router.get('/resume', seekerController.getResumes);
+router.get('/resumes', seekerController.getResumes);
 router.post('/resume/upload', upload.single('resume'), seekerController.uploadResume);
 router.delete('/resume/:id', seekerController.deleteResume);
 
