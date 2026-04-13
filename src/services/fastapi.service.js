@@ -1,26 +1,6 @@
-const axios = require('axios');
+const fastapi = require('../config/fastapi');
 const FormData = require('form-data');
 const fs = require('fs');
-
-const getBaseUrl = () => {
-  let url = process.env.MODE_S === 'production' 
-    ? process.env.FASTAPI_URL_PRO 
-    : (process.env.FASTAPI_URL_DEV || 'http://127.0.0.1:8000');
-  if (url && url.endsWith('/')) {
-    url = url.slice(0, -1);
-  }
-  return url;
-};
-
-const fastapi = axios.create({
-  baseURL: getBaseUrl(),
-  timeout: 180000, // 3 minutes for Render cold starts
-});
-
-fastapi.interceptors.request.use(config => {
-  config.baseURL = getBaseUrl();
-  return config;
-});
 
 exports.healthCheck = async () => {
   try {
@@ -64,16 +44,56 @@ exports.getJobById = async (jobId) => {
 
 exports.matchJobs = async (userId, filePath) => {
   try {
+    const baseUrl = process.env.MODE_S === 'production' 
+      ? process.env.FASTAPI_URL_PRO 
+      : (process.env.FASTAPI_URL_DEV || 'http://127.0.0.1:8000');
+    
+    console.log('📁 Creating FormData with file:', filePath);
+    console.log('🌐 FastAPI Base URL:', baseUrl);
+    console.log('📌 MODE_S:', process.env.MODE_S);
+    
     const form = new FormData();
     form.append('user_id', userId.toString());
-    form.append('file', fs.createReadStream(filePath));
+    
+    if (!fs.existsSync(filePath)) {
+      throw new Error(`Resume file not found at path: ${filePath}`);
+    }
+    
+    const fileStream = fs.createReadStream(filePath);
+    form.append('file', fileStream, 'resume.pdf');
 
+    const endpoint = `${baseUrl}/match-jobs`;
+    console.log('🚀 Sending to FastAPI endpoint:', endpoint);
+    
     const response = await fastapi.post('/match-jobs', form, {
       headers: form.getHeaders(),
+      timeout: 180000, // 180 seconds for Render cold start
     });
+    
+    console.log('✅ FastAPI response received:', {
+      status: response.status,
+      statusText: response.statusText,
+      hasMatches: !!response.data.matches,
+      matchCount: response.data.matches?.length || 0
+    });
+    console.log('📊 Full FastAPI response:', JSON.stringify(response.data));
     return response.data; // { user_id, matches: [...] }
   } catch (err) {
-    console.error('FastAPI matchJobs error:', err.response?.data || err.message);
+    const errorMsg = err.response?.data?.detail || err.response?.data?.message || err.message;
+    const fullErrorData = err.response?.data;
+    
+    console.error('❌ FastAPI matchJobs FAILED:', {
+      httpStatus: err.response?.status,
+      statusText: err.response?.statusText,
+      errorMessage: errorMsg,
+      fullErrorResponse: fullErrorData,
+      requestURL: err.config?.url,
+      requestMethod: err.config?.method,
+      baseURL: err.config?.baseURL,
+      errorCode: err.code,
+      isTimeout: err.code === 'ECONNABORTED',
+      isNetworkError: err.code === 'ENOTFOUND' || err.code === 'ECONNREFUSED'
+    });
     throw err;
   }
 };

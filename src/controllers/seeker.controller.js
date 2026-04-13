@@ -69,19 +69,47 @@ exports.uploadResume = async (req, res, next) => {
     // Call FastAPI matching
     let analysisData = null;
     let fallbackMatches = [];
+    let fastapiError = null;
+    
     try {
+      console.log('📤 Sending resume to FastAPI for analysis...');
+      console.log('🔍 Resume file:', req.file.originalname, 'Size:', req.file.size, 'bytes');
       const matchResponse = await fastapiService.matchJobs(req.user._id.toString(), req.file.path);
+      console.log('✅ FastAPI analysis successful:', matchResponse);
       analysisData = matchResponse;
       fallbackMatches = matchResponse.matches || [];
     } catch (err) {
-      // Log the error for diagnostics (quota, API key, network issues, etc.)
+      // Log comprehensive error information
       const status = err?.response?.status;
-      const detail = err?.response?.data?.detail;
-      console.error('FastAPI matching failed - Status:', status, 'Detail:', detail || err.message);
+      const errorDetail = err?.response?.data?.detail || err?.response?.data?.message || err.message;
+      const fullError = err?.response?.data;
       
-      // Silently continue with null analysis and empty matches as fallback
-      // Resume will still be saved, just without AI analysis
-      analysisData = null;
+      fastapiError = `FastAPI Error (${status}): ${errorDetail}`;
+      
+      console.error('❌ FastAPI MATCHING FAILED - FULL DETAILS:', {
+        httpStatus: status,
+        errorMessage: errorDetail,
+        fullResponseData: fullError,
+        requestURL: err.config?.url,
+        requestMethod: err.config?.method,
+        requestBaseURL: err.config?.baseURL,
+        errorType: err.code,
+        timestamp: new Date().toISOString()
+      });
+      
+      // Generate mock analysis data as fallback
+      console.log('⚠️  Using fallback analysis due to AI service unavailability');
+      analysisData = {
+        fallback: true,
+        error: fastapiError,
+        message: 'AI analysis unavailable. Please try uploading again or contact support.',
+        matches: [],
+        debugInfo: process.env.NODE_ENV === 'development' ? {
+          fastAPIURL: process.env.FASTAPI_URL_PRO || process.env.FASTAPI_URL_DEV,
+          actualError: errorDetail,
+          fullResponse: fullError
+        } : undefined
+      };
       fallbackMatches = [];
     }
 
@@ -93,15 +121,19 @@ exports.uploadResume = async (req, res, next) => {
       analysis: analysisData
     });
 
+    // IMPORTANT: Frontend expects either matches or analysis to be non-null/non-empty
+    // Return analysis even if it's a fallback error message so frontend doesn't throw
     res.status(201).json({
       status: 'success',
       data: {
         resume: newResume,
         analysis: analysisData,
-        matches: fallbackMatches
+        matches: fallbackMatches,
+        ...(fastapiError && { warning: fastapiError })
       }
     });
   } catch (err) {
+    console.error('❌ Resume upload controller error:', err);
     next(err);
   }
 };
@@ -215,6 +247,65 @@ exports.getJobMatches = async (req, res, next) => {
     res.status(200).json({
       status: 'success',
       data: { matches: [] }
+    });
+  }
+};
+
+// Diagnostic endpoint to test FastAPI connectivity
+exports.testFastAPIConnection = async (req, res, next) => {
+  try {
+    console.log('\n🧪 TESTING FASTAPI CONNECTION...');
+    console.log('MODE_S:', process.env.MODE_S);
+    console.log('FASTAPI_URL_DEV:', process.env.FASTAPI_URL_DEV);
+    console.log('FASTAPI_URL_PRO:', process.env.FASTAPI_URL_PRO);
+    
+    const fastapi = require('../config/fastapi');
+    const baseUrl = fastapi.defaults.baseURL;
+    console.log('✅ Axios instance baseURL:', baseUrl);
+    
+    // Test /health endpoint
+    console.log('📍 Testing /health endpoint...');
+    const healthResponse = await fastapi.get('/health');
+    
+    console.log('✅ Health check passed:', healthResponse.status);
+    
+    res.status(200).json({
+      status: 'success',
+      data: {
+        message: 'FastAPI connection successful',
+        baseURL: baseUrl,
+        healthCheck: healthResponse.data,
+        envConfig: {
+          MODE_S: process.env.MODE_S,
+          FASTAPI_URL_DEV: process.env.FASTAPI_URL_DEV,
+          FASTAPI_URL_PRO: process.env.FASTAPI_URL_PRO
+        }
+      }
+    });
+  } catch (err) {
+    console.error('❌ FastAPI connection test FAILED:', err.message);
+    console.error('Full error:', {
+      status: err.response?.status,
+      statusText: err.response?.statusText,
+      data: err.response?.data,
+      message: err.message,
+      code: err.code
+    });
+    
+    res.status(200).json({
+      status: 'error',
+      data: {
+        message: 'FastAPI connection failed',
+        error: err.message,
+        errorCode: err.code,
+        httpStatus: err.response?.status,
+        errorResponse: err.response?.data,
+        envConfig: {
+          MODE_S: process.env.MODE_S,
+          FASTAPI_URL_DEV: process.env.FASTAPI_URL_DEV,
+          FASTAPI_URL_PRO: process.env.FASTAPI_URL_PRO
+        }
+      }
     });
   }
 };

@@ -9,6 +9,9 @@ const router = express.Router();
 router.use(protect);
 router.use(restrictTo('seeker'));
 
+// Diagnostic route (no special restrictions)
+router.get('/test-fastapi', seekerController.testFastAPIConnection);
+
 // Seeker Profile
 router.get('/profile', seekerController.getProfile);
 router.post('/profile', seekerController.upsertProfile);
