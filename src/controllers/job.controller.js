@@ -29,9 +29,12 @@ exports.getAllJobs = async (req, res, next) => {
     const jobs = await Job.find(query)
       .sort('-createdAt')
       .skip(skip)
-      .limit(Number(limit));
+      .limit(Number(limit))
+      .lean();
 
     const total = await Job.countDocuments(query);
+
+    console.log('✅ Fetched', jobs.length, 'jobs from DB (total:', total, ')');
 
     res.status(200).json({
       status: 'success',
@@ -40,6 +43,7 @@ exports.getAllJobs = async (req, res, next) => {
       data: jobs
     });
   } catch (err) {
+    console.error('❌ Error fetching jobs:', err.message);
     next(err);
   }
 };
@@ -94,21 +98,86 @@ exports.createJob = async (req, res, next) => {
 exports.updateJob = async (req, res, next) => {
   try {
     // Only the provider who posted the job can update it
-    const job = await Job.findOneAndUpdate(
-      { _id: req.params.id, postedBy: req.user._id },
-      req.body,
-      { new: true, runValidators: true }
-    );
+    const job = await Job.findOne({ _id: req.params.id, postedBy: req.user._id });
 
     if (!job) {
       return next(new AppError('Job not found or you are unauthorized to update it', 404));
     }
 
+    // Validate job status transitions
+    const currentStatus = job.status;
+    const newStatus = req.body.status;
+    const newExpirationDate = req.body.expirationDate;
+
+    // Prevent invalid status transitions
+    if (newStatus && newStatus !== currentStatus) {
+      console.log(`Status change attempt: ${currentStatus} → ${newStatus}`);
+      
+      // Closed jobs cannot be reopened by just changing dates
+      if (currentStatus === 'closed' && newStatus === 'open') {
+        return next(new AppError('Closed jobs cannot be reopened. Please create a new job posting instead.', 400));
+      }
+
+      // Only allow: open → closed (when filled or employer ends it)
+      if (!['open', 'closed', 'paused'].includes(newStatus)) {
+        return next(new AppError('Invalid job status. Allowed: open, closed, paused', 400));
+      }
+    }
+
+    // Validate expiration date - prevent backdating
+    if (newExpirationDate) {
+      const newDate = new Date(newExpirationDate);
+      const now = new Date();
+      const currentExpiration = new Date(job.expirationDate);
+
+      // Cannot set expiration date in the past
+      if (newDate < now) {
+        return next(new AppError('Expiration date cannot be in the past', 400));
+      }
+
+      // Cannot extend closed jobs (even with new dates)
+      if (job.status === 'closed' && newDate > currentExpiration) {
+        return next(new AppError('Cannot extend expiration date of a closed job', 400));
+      }
+
+      // Can only extend by max 90 days from original expiration
+      const maxExtension = new Date(currentExpiration);
+      maxExtension.setDate(maxExtension.getDate() + 90);
+      if (newDate > maxExtension) {
+        return next(new AppError('Cannot extend job posting by more than 90 days', 400));
+      }
+    }
+
+    // Whitelist allowed fields to update
+    const allowedFields = ['title', 'description', 'location', 'salary', 'type', 'skillsRequired', 'expirationDate', 'status', 'applicantRequirements'];
+    const updateData = {};
+    
+    for (let field of allowedFields) {
+      if (req.body.hasOwnProperty(field)) {
+        updateData[field] = req.body[field];
+      }
+    }
+
+    // Log the update for audit trail
+    console.log('📝 Job update by provider:', {
+      jobId: job._id,
+      providerId: req.user._id,
+      changedFields: Object.keys(updateData),
+      timestamp: new Date().toISOString()
+    });
+
+    const updatedJob = await Job.findByIdAndUpdate(
+      req.params.id,
+      updateData,
+      { new: true, runValidators: true }
+    );
+
     res.status(200).json({
       status: 'success',
-      data: job
+      data: updatedJob
     });
   } catch (err) {
+    console.error('❌ Job update error:', err.message);
     next(err);
   }
 };
@@ -141,20 +210,28 @@ exports.getJobMatches = async (req, res, next) => {
     // Get latest resume
     const resume = await Resume.findOne({ userId }).sort('-createdAt');
     if (!resume) {
+      console.log('⚠️ No resume found for user:', userId);
       return res.status(200).json({
         status: 'success',
         data: { matches: [] }
       });
     }
 
+    console.log('📊 Computing job matches for user:', userId);
     const matches = await fastapiService.matchJobs(userId.toString(), resume.fileUrl);
+    console.log('✅ Found', matches.matches?.length || 0, 'matching jobs');
     
     res.status(200).json({
       status: 'success',
       data: matches
     });
   } catch (err) {
-    next(err);
+    console.error('❌ Error matching jobs:', err.message);
+    // Return empty results instead of 500
+    res.status(200).json({
+      status: 'success',
+      data: { matches: [] }
+    });
   }
 };
 

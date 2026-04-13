@@ -1,26 +1,6 @@
-const axios = require('axios');
+const fastapi = require('../config/fastapi');
 const FormData = require('form-data');
 const fs = require('fs');
-
-const getBaseUrl = () => {
-  let url = process.env.MODE_S === 'production' 
-    ? process.env.FASTAPI_URL_PRO 
-    : (process.env.FASTAPI_URL_DEV || 'http://127.0.0.1:8000');
-  if (url && url.endsWith('/')) {
-    url = url.slice(0, -1);
-  }
-  return url;
-};
-
-const fastapi = axios.create({
-  baseURL: getBaseUrl(),
-  timeout: 180000, // 3 minutes for Render cold starts
-});
-
-fastapi.interceptors.request.use(config => {
-  config.baseURL = getBaseUrl();
-  return config;
-});
 
 exports.healthCheck = async () => {
   try {
@@ -64,16 +44,29 @@ exports.getJobById = async (jobId) => {
 
 exports.matchJobs = async (userId, filePath) => {
   try {
+    if (!fs.existsSync(filePath)) {
+      throw new Error(`Resume file not found at path: ${filePath}`);
+    }
+    
     const form = new FormData();
     form.append('user_id', userId.toString());
     form.append('file', fs.createReadStream(filePath));
 
     const response = await fastapi.post('/match-jobs', form, {
       headers: form.getHeaders(),
+      timeout: 180000,
     });
-    return response.data; // { user_id, matches: [...] }
+    
+    return response.data;
   } catch (err) {
-    console.error('FastAPI matchJobs error:', err.response?.data || err.message);
+    const errorMsg = err.response?.data?.detail || err.message;
+    
+    if (errorMsg.includes('NoneType') || errorMsg.includes('session')) {
+      console.error('❌ Neo4j database connection issue - Database may be offline or credentials incorrect');
+    } else {
+      console.error('❌ FastAPI matching failed:', errorMsg);
+    }
+    
     throw err;
   }
 };

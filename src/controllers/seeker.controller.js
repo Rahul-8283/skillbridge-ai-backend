@@ -50,12 +50,14 @@ exports.upsertProfile = async (req, res, next) => {
 // Resumes
 exports.getResumes = async (req, res, next) => {
   try {
-    const resumes = await Resume.find({ userId: req.user._id }).sort('-createdAt');
+    const resumes = await Resume.find({ userId: req.user._id }).sort('-createdAt').lean();
+    console.log('✅ Fetched', resumes.length, 'resumes from DB');
     res.status(200).json({
       status: 'success',
       data: resumes
     });
   } catch (err) {
+    console.error('❌ Error fetching resumes:', err.message);
     next(err);
   }
 };
@@ -66,42 +68,70 @@ exports.uploadResume = async (req, res, next) => {
       return next(new AppError('Please upload a file', 400));
     }
 
-    // Call FastAPI matching
-    let analysisData = null;
-    let fallbackMatches = [];
-    try {
-      const matchResponse = await fastapiService.matchJobs(req.user._id.toString(), req.file.path);
-      analysisData = matchResponse;
-      fallbackMatches = matchResponse.matches || [];
-    } catch (err) {
-      // Log the error for diagnostics (quota, API key, network issues, etc.)
-      const status = err?.response?.status;
-      const detail = err?.response?.data?.detail;
-      console.error('FastAPI matching failed - Status:', status, 'Detail:', detail || err.message);
-      
-      // Silently continue with null analysis and empty matches as fallback
-      // Resume will still be saved, just without AI analysis
-      analysisData = null;
-      fallbackMatches = [];
-    }
-
+    // 1. Save resume immediately (without waiting for AI analysis)
     const newResume = await Resume.create({
       userId: req.user._id,
       filename: req.file.originalname,
       fileUrl: req.file.path,
       fileType: req.file.mimetype,
-      analysis: analysisData
+      analysis: { processing: true, message: 'AI analysis in progress...' }
     });
 
+    console.log('✅ Resume saved successfully:', { id: newResume._id, filename: newResume.filename });
+
+    // 2. Return success immediately to frontend (don't wait for AI)
     res.status(201).json({
       status: 'success',
       data: {
-        resume: newResume,
-        analysis: analysisData,
-        matches: fallbackMatches
+        resume: newResume.toObject(),
+        analysis: { processing: true, message: 'AI analysis in progress. Refresh the page in a few moments.' },
+        matches: [],
+        info: 'Resume uploaded successfully. AI analysis is processing in the background.'
+      }
+    });
+
+    // 3. Process AI analysis in background (non-blocking)
+    setImmediate(async () => {
+      try {
+        console.log('🔄 Starting background AI analysis for resume:', newResume._id);
+        const matchResponse = await fastapiService.matchJobs(req.user._id.toString(), req.file.path);
+        
+        // Update resume with analysis results
+        await Resume.findByIdAndUpdate(
+          newResume._id,
+          { 
+            analysis: matchResponse,
+            updatedAt: new Date()
+          },
+          { new: true }
+        );
+        
+        console.log('✅ Background AI analysis completed for resume:', newResume._id);
+      } catch (err) {
+        const errorDetail = err?.response?.data?.detail || err.message;
+        console.error('⚠️ Background AI analysis failed:', errorDetail);
+        
+        if (errorDetail.includes('NoneType') || errorDetail.includes('session')) {
+          console.error('❌ Neo4j database issue - Database may be offline');
+        }
+        
+        // Update resume with error state
+        await Resume.findByIdAndUpdate(
+          newResume._id,
+          { 
+            analysis: {
+              fallback: true,
+              error: errorDetail,
+              message: 'AI analysis temporarily unavailable. Try refreshing the page later.'
+            },
+            updatedAt: new Date()
+          },
+          { new: true }
+        );
       }
     });
   } catch (err) {
+    console.error('❌ Resume upload controller error:', err);
     next(err);
   }
 };
@@ -215,6 +245,35 @@ exports.getJobMatches = async (req, res, next) => {
     res.status(200).json({
       status: 'success',
       data: { matches: [] }
+    });
+  }
+};
+
+// Diagnostic endpoint to test FastAPI connectivity
+exports.testFastAPIConnection = async (req, res, next) => {
+  try {
+    const fastapi = require('../config/fastapi');
+    const baseUrl = fastapi.defaults.baseURL;
+    const healthResponse = await fastapi.get('/health');
+    
+    res.status(200).json({
+      status: 'success',
+      data: {
+        message: 'FastAPI connection successful',
+        baseURL: baseUrl,
+        healthCheck: healthResponse.data
+      }
+    });
+  } catch (err) {
+    res.status(200).json({
+      status: 'error',
+      data: {
+        message: 'FastAPI connection failed',
+        error: err.message,
+        errorCode: err.code,
+        httpStatus: err.response?.status,
+        errorResponse: err.response?.data
+      }
     });
   }
 };
