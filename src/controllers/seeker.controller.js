@@ -50,12 +50,14 @@ exports.upsertProfile = async (req, res, next) => {
 // Resumes
 exports.getResumes = async (req, res, next) => {
   try {
-    const resumes = await Resume.find({ userId: req.user._id }).sort('-createdAt');
+    const resumes = await Resume.find({ userId: req.user._id }).sort('-createdAt').lean();
+    console.log('✅ Fetched', resumes.length, 'resumes from DB');
     res.status(200).json({
       status: 'success',
       data: resumes
     });
   } catch (err) {
+    console.error('❌ Error fetching resumes:', err.message);
     next(err);
   }
 };
@@ -101,12 +103,14 @@ exports.uploadResume = async (req, res, next) => {
       analysis: analysisData
     });
 
+    console.log('✅ Resume saved successfully:', { id: newResume._id, filename: newResume.filename });
+
     // IMPORTANT: Frontend expects either matches or analysis to be non-null/non-empty
     // Return analysis even if it's a fallback error message so frontend doesn't throw
     res.status(201).json({
       status: 'success',
       data: {
-        resume: newResume,
+        resume: newResume.toObject(),
         analysis: analysisData,
         matches: fallbackMatches,
         ...(fastapiError && { warning: fastapiError })
