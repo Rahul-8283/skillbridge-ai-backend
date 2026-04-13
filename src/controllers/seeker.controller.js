@@ -68,52 +68,66 @@ exports.uploadResume = async (req, res, next) => {
       return next(new AppError('Please upload a file', 400));
     }
 
-    // Call FastAPI matching
-    let analysisData = null;
-    let fallbackMatches = [];
-    let fastapiError = null;
-    
-    try {
-      const matchResponse = await fastapiService.matchJobs(req.user._id.toString(), req.file.path);
-      analysisData = matchResponse;
-      fallbackMatches = matchResponse.matches || [];
-    } catch (err) {
-      const errorDetail = err?.response?.data?.detail || err.message;
-      fastapiError = `FastAPI Error: ${errorDetail}`;
-      
-      if (errorDetail.includes('NoneType') || errorDetail.includes('session')) {
-        console.error('❌ Resume upload error: Neo4j database issue - Database may be offline or credentials incorrect');
-      }
-      
-      // Generate fallback analysis
-      analysisData = {
-        fallback: true,
-        error: fastapiError,
-        message: 'AI analysis unavailable. Please try uploading again or contact support.',
-        matches: []
-      };
-      fallbackMatches = [];
-    }
-
+    // 1. Save resume immediately (without waiting for AI analysis)
     const newResume = await Resume.create({
       userId: req.user._id,
       filename: req.file.originalname,
       fileUrl: req.file.path,
       fileType: req.file.mimetype,
-      analysis: analysisData
+      analysis: { processing: true, message: 'AI analysis in progress...' }
     });
 
     console.log('✅ Resume saved successfully:', { id: newResume._id, filename: newResume.filename });
 
-    // IMPORTANT: Frontend expects either matches or analysis to be non-null/non-empty
-    // Return analysis even if it's a fallback error message so frontend doesn't throw
+    // 2. Return success immediately to frontend (don't wait for AI)
     res.status(201).json({
       status: 'success',
       data: {
         resume: newResume.toObject(),
-        analysis: analysisData,
-        matches: fallbackMatches,
-        ...(fastapiError && { warning: fastapiError })
+        analysis: { processing: true, message: 'AI analysis in progress. Refresh the page in a few moments.' },
+        matches: [],
+        info: 'Resume uploaded successfully. AI analysis is processing in the background.'
+      }
+    });
+
+    // 3. Process AI analysis in background (non-blocking)
+    setImmediate(async () => {
+      try {
+        console.log('🔄 Starting background AI analysis for resume:', newResume._id);
+        const matchResponse = await fastapiService.matchJobs(req.user._id.toString(), req.file.path);
+        
+        // Update resume with analysis results
+        await Resume.findByIdAndUpdate(
+          newResume._id,
+          { 
+            analysis: matchResponse,
+            updatedAt: new Date()
+          },
+          { new: true }
+        );
+        
+        console.log('✅ Background AI analysis completed for resume:', newResume._id);
+      } catch (err) {
+        const errorDetail = err?.response?.data?.detail || err.message;
+        console.error('⚠️ Background AI analysis failed:', errorDetail);
+        
+        if (errorDetail.includes('NoneType') || errorDetail.includes('session')) {
+          console.error('❌ Neo4j database issue - Database may be offline');
+        }
+        
+        // Update resume with error state
+        await Resume.findByIdAndUpdate(
+          newResume._id,
+          { 
+            analysis: {
+              fallback: true,
+              error: errorDetail,
+              message: 'AI analysis temporarily unavailable. Try refreshing the page later.'
+            },
+            updatedAt: new Date()
+          },
+          { new: true }
+        );
       }
     });
   } catch (err) {
