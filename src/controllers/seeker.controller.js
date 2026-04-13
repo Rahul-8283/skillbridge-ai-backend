@@ -72,43 +72,23 @@ exports.uploadResume = async (req, res, next) => {
     let fastapiError = null;
     
     try {
-      console.log('📤 Sending resume to FastAPI for analysis...');
-      console.log('🔍 Resume file:', req.file.originalname, 'Size:', req.file.size, 'bytes');
       const matchResponse = await fastapiService.matchJobs(req.user._id.toString(), req.file.path);
-      console.log('✅ FastAPI analysis successful:', matchResponse);
       analysisData = matchResponse;
       fallbackMatches = matchResponse.matches || [];
     } catch (err) {
-      // Log comprehensive error information
-      const status = err?.response?.status;
-      const errorDetail = err?.response?.data?.detail || err?.response?.data?.message || err.message;
-      const fullError = err?.response?.data;
+      const errorDetail = err?.response?.data?.detail || err.message;
+      fastapiError = `FastAPI Error: ${errorDetail}`;
       
-      fastapiError = `FastAPI Error (${status}): ${errorDetail}`;
+      if (errorDetail.includes('NoneType') || errorDetail.includes('session')) {
+        console.error('❌ Resume upload error: Neo4j database issue - Database may be offline or credentials incorrect');
+      }
       
-      console.error('❌ FastAPI MATCHING FAILED - FULL DETAILS:', {
-        httpStatus: status,
-        errorMessage: errorDetail,
-        fullResponseData: fullError,
-        requestURL: err.config?.url,
-        requestMethod: err.config?.method,
-        requestBaseURL: err.config?.baseURL,
-        errorType: err.code,
-        timestamp: new Date().toISOString()
-      });
-      
-      // Generate mock analysis data as fallback
-      console.log('⚠️  Using fallback analysis due to AI service unavailability');
+      // Generate fallback analysis
       analysisData = {
         fallback: true,
         error: fastapiError,
         message: 'AI analysis unavailable. Please try uploading again or contact support.',
-        matches: [],
-        debugInfo: process.env.NODE_ENV === 'development' ? {
-          fastAPIURL: process.env.FASTAPI_URL_PRO || process.env.FASTAPI_URL_DEV,
-          actualError: errorDetail,
-          fullResponse: fullError
-        } : undefined
+        matches: []
       };
       fallbackMatches = [];
     }
@@ -254,44 +234,19 @@ exports.getJobMatches = async (req, res, next) => {
 // Diagnostic endpoint to test FastAPI connectivity
 exports.testFastAPIConnection = async (req, res, next) => {
   try {
-    console.log('\n🧪 TESTING FASTAPI CONNECTION...');
-    console.log('MODE_S:', process.env.MODE_S);
-    console.log('FASTAPI_URL_DEV:', process.env.FASTAPI_URL_DEV);
-    console.log('FASTAPI_URL_PRO:', process.env.FASTAPI_URL_PRO);
-    
     const fastapi = require('../config/fastapi');
     const baseUrl = fastapi.defaults.baseURL;
-    console.log('✅ Axios instance baseURL:', baseUrl);
-    
-    // Test /health endpoint
-    console.log('📍 Testing /health endpoint...');
     const healthResponse = await fastapi.get('/health');
-    
-    console.log('✅ Health check passed:', healthResponse.status);
     
     res.status(200).json({
       status: 'success',
       data: {
         message: 'FastAPI connection successful',
         baseURL: baseUrl,
-        healthCheck: healthResponse.data,
-        envConfig: {
-          MODE_S: process.env.MODE_S,
-          FASTAPI_URL_DEV: process.env.FASTAPI_URL_DEV,
-          FASTAPI_URL_PRO: process.env.FASTAPI_URL_PRO
-        }
+        healthCheck: healthResponse.data
       }
     });
   } catch (err) {
-    console.error('❌ FastAPI connection test FAILED:', err.message);
-    console.error('Full error:', {
-      status: err.response?.status,
-      statusText: err.response?.statusText,
-      data: err.response?.data,
-      message: err.message,
-      code: err.code
-    });
-    
     res.status(200).json({
       status: 'error',
       data: {
@@ -299,12 +254,7 @@ exports.testFastAPIConnection = async (req, res, next) => {
         error: err.message,
         errorCode: err.code,
         httpStatus: err.response?.status,
-        errorResponse: err.response?.data,
-        envConfig: {
-          MODE_S: process.env.MODE_S,
-          FASTAPI_URL_DEV: process.env.FASTAPI_URL_DEV,
-          FASTAPI_URL_PRO: process.env.FASTAPI_URL_PRO
-        }
+        errorResponse: err.response?.data
       }
     });
   }
