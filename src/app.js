@@ -11,8 +11,20 @@ const { rateLimiter } = require('./middlewares/rateLimiter');
 const app = express();
 
 // Middlewares
+const allowedOrigins = [
+  process.env.CLIENT_URL_DEV,
+  process.env.CLIENT_URL_PRO,
+  "http://localhost:5173"
+].filter(Boolean);
+
 app.use(cors({
-  origin: process.env.MODE_F === 'development' ? process.env.CLIENT_URL_DEV : process.env.CLIENT_URL_PRO,
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
 }));
 app.use(helmet());
