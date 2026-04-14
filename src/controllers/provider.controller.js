@@ -117,3 +117,56 @@ exports.updateCandidateStatus = async (req, res, next) => {
     next(err);
   }
 };
+
+const fastapiService = require('../services/fastapi.service');
+
+exports.getMatchedCandidates = async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    
+    // First, verify the job belongs to the provider
+    const job = await Job.findOne({ _id: jobId, postedBy: req.user._id });
+    if (!job) {
+      return next(new AppError('Job not found or unauthorized', 404));
+    }
+    
+    // Get AI matches
+    const matchesResponse = await fastapiService.matchCandidates(jobId);
+    const matches = matchesResponse.matches || [];
+    
+    // Fetch all seekers and their profiles
+    const seekers = await User.find({ role: 'seeker' }).select('-password');
+    const enrichedSeekers = [];
+
+    for (let seeker of seekers) {
+      const profile = await SeekerProfile.findOne({ userId: seeker._id });
+      // Find match data
+      const matchData = matches.find(m => m.user_id === seeker._id.toString());
+      
+      enrichedSeekers.push({
+        _id: seeker._id,
+        name: seeker.name,
+        email: seeker.email,
+        profile: profile || {},
+        matchScore: matchData ? Math.round(Number(matchData.score) * 100) : null,
+        missingSkills: matchData ? matchData.missing_skills : [],
+        matchedSkills: matchData ? matchData.matched_skills : []
+      });
+    }
+
+    // Sort by match score descending
+    enrichedSeekers.sort((a, b) => {
+       if (a.matchScore === null && b.matchScore === null) return 0;
+       if (a.matchScore === null) return 1;
+       if (b.matchScore === null) return -1;
+       return b.matchScore - a.matchScore;
+    });
+
+    res.status(200).json({
+      status: 'success',
+      data: enrichedSeekers
+    });
+  } catch (err) {
+    next(err);
+  }
+};

@@ -19,6 +19,7 @@ router.post('/jobs', jobController.createJob);
 // Dashboard and candidate management
 router.get('/my-jobs', providerController.getMyJobs);
 router.get('/candidates', providerController.getCandidates);
+router.get('/candidates/match/:jobId', providerController.getMatchedCandidates);
 router.put('/candidates/status', providerController.updateCandidateStatus);
 
 module.exports = router;

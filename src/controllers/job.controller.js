@@ -301,3 +301,35 @@ exports.getJobApplications = async (req, res, next) => {
   }
 };
 
+exports.updateApplicationStatus = async (req, res, next) => {
+  try {
+    const { appId } = req.params;
+    const { status } = req.body;
+    
+    // Ensure status is valid
+    if (!['pending', 'accepted', 'rejected'].includes(status)) {
+      return next(new AppError('Invalid status', 400));
+    }
+    
+    // Find application and ensure the current user is the job provider
+    const application = await JobApplication.findById(appId).populate('jobId');
+    if (!application) {
+      return next(new AppError('Application not found', 404));
+    }
+    
+    if (application.jobId.postedBy.toString() !== req.user._id.toString()) {
+       return next(new AppError('You are not authorized to update this application', 403));
+    }
+    
+    application.status = status;
+    await application.save();
+    
+    res.status(200).json({
+      status: 'success',
+      data: application
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
