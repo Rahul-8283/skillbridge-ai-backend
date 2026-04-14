@@ -119,6 +119,13 @@ const normalizeRoadmapSkills = (skills = []) => {
             item.learning_path
         );
 
+        const normalizedStepTimeDays = Array.isArray(item.step_time_days)
+            ? item.step_time_days.map((day) => {
+                const parsed = Number(day);
+                return Number.isFinite(parsed) ? Number(parsed.toFixed(2)) : 0;
+            })
+            : [];
+
         const normalizedTotalDays = Number(
             item.total_days ??
             item.duration_days ??
@@ -128,17 +135,17 @@ const normalizeRoadmapSkills = (skills = []) => {
         );
 
         return {
-            ...item,
             skill: item.skill || item.keyword || item.name || 'Unnamed Skill',
             youtube_url: normalizedYoutubeUrl,
-            github_url: normalizedGithubUrl,
-            github_repos: normalizedGithubRepos,
             summary: normalizedSummary,
-            resources,
             roadmap: normalizedRoadmap,
+            step_time_days: normalizedStepTimeDays,
             total_days: Number.isFinite(normalizedTotalDays)
                 ? Number(normalizedTotalDays.toFixed(2))
-                : 0
+                : 0,
+            resources,
+            github_url: normalizedGithubUrl,
+            github_repos: normalizedGithubRepos,
         };
     });
 };
@@ -146,6 +153,7 @@ const normalizeRoadmapSkills = (skills = []) => {
 exports.generateRoadmap = async (req, res, next) => {
     try {
         const { userId, jobId, hoursPerDay = 2 } = req.body;
+        let existingPlanDoc = null;
         
         if (!userId || !jobId) {
             return next(new AppError('userId and jobId are required to generate roadmap', 400));
@@ -163,13 +171,23 @@ exports.generateRoadmap = async (req, res, next) => {
                 jobId 
             });
             if (existingPlan) {
+                existingPlanDoc = existingPlan;
+                const normalizedExistingSkills = normalizeRoadmapSkills(existingPlan.skills || []);
+                const existingSkillsJson = JSON.stringify(existingPlan.skills || []);
+                const normalizedSkillsJson = JSON.stringify(normalizedExistingSkills);
+
+                if (existingSkillsJson !== normalizedSkillsJson) {
+                    existingPlan.skills = normalizedExistingSkills;
+                    await existingPlan.save();
+                }
+
                 if (hasFallbackPlanContent(existingPlan)) {
                     console.log('[Roadmap] Existing plan has fallback content; regenerating fresh roadmap.');
                 } else {
-                return res.status(200).json({
-                    status: 'success',
-                    data: existingPlan
-                });
+                    return res.status(200).json({
+                        status: 'success',
+                        data: existingPlan
+                    });
                 }
             }
         } catch (err) {
@@ -207,16 +225,21 @@ exports.generateRoadmap = async (req, res, next) => {
         // Map and Save to MongoDB
         const normalizedSkills = normalizeRoadmapSkills(roadmapData.skills);
 
-        const newPlan = await LearningPlan.create({
+        const normalizedOverallDays = Number(roadmapData.overall_days ?? roadmapData.overallDays ?? 0);
+        const planPayload = {
             userId: new mongoose.Types.ObjectId(userId),
             jobId,
             title: `Learning Plan for ${jobTitle}`,
-            targetRole: roadmapData.target_role || jobTitle,
-            overallDays: roadmapData.overall_days,
+            targetRole: roadmapData.target_role || roadmapData.targetRole || jobTitle,
+            overallDays: Number.isFinite(normalizedOverallDays) ? Number(normalizedOverallDays.toFixed(2)) : 0,
             hoursPerDay,
             skills: normalizedSkills,
             status: 'active'
-        });
+        };
+
+        const newPlan = existingPlanDoc
+            ? await LearningPlan.findByIdAndUpdate(existingPlanDoc._id, planPayload, { new: true, runValidators: true })
+            : await LearningPlan.create(planPayload);
 
         res.status(200).json({
             status: 'success',
@@ -242,6 +265,19 @@ exports.getLearningPlans = async (req, res, next) => {
         }
 
         const plans = await LearningPlan.find({ userId: new mongoose.Types.ObjectId(userId) }).sort('-createdAt');
+
+        const plansToRepair = [];
+        for (const plan of plans) {
+            const normalizedSkills = normalizeRoadmapSkills(plan.skills || []);
+            if (JSON.stringify(plan.skills || []) !== JSON.stringify(normalizedSkills)) {
+                plan.skills = normalizedSkills;
+                plansToRepair.push(plan.save());
+            }
+        }
+
+        if (plansToRepair.length > 0) {
+            await Promise.all(plansToRepair);
+        }
         
         res.status(200).json({
             status: 'success',
