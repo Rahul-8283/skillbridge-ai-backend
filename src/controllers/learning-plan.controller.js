@@ -80,7 +80,6 @@ const normalizeRoadmapSkills = (skills = []) => {
     return skills.map((skillItem) => {
         const item = skillItem && typeof skillItem === 'object' ? skillItem : {};
         const youtubeItems = Array.isArray(item.youtube) ? item.youtube : [];
-        const githubItems = Array.isArray(item.github) ? item.github : [];
         const resources = Array.isArray(item.resources) ? item.resources : [];
 
         const normalizedYoutubeUrl =
@@ -90,18 +89,6 @@ const normalizeRoadmapSkills = (skills = []) => {
             item.youtubeUrl ||
             youtubeItems[0]?.url ||
             null;
-
-        const normalizedGithubUrl =
-            item.github_url ||
-            item.githubUrl ||
-            item.github_repo_url ||
-            githubItems[0]?.url ||
-            githubItems[0]?.html_url ||
-            null;
-
-        const normalizedGithubRepos = Array.isArray(item.github_repos)
-            ? item.github_repos
-            : githubItems;
 
         const normalizedSummary =
             item.summary ||
@@ -143,9 +130,7 @@ const normalizeRoadmapSkills = (skills = []) => {
             total_days: Number.isFinite(normalizedTotalDays)
                 ? Number(normalizedTotalDays.toFixed(2))
                 : 0,
-            resources,
-            github_url: normalizedGithubUrl,
-            github_repos: normalizedGithubRepos,
+            resources
         };
     });
 };
