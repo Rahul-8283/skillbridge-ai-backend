@@ -22,6 +22,58 @@ const extractUpstreamError = (err, defaultMessage) => {
     };
 };
 
+const FALLBACK_SUMMARY_MARKER = 'Summary not available yet';
+
+const normalizeRoadmapSteps = (stepsInput) => {
+    if (Array.isArray(stepsInput)) {
+        return stepsInput
+            .map((step) => {
+                if (typeof step === 'string') return step.trim();
+                if (step && typeof step === 'object') {
+                    return (
+                        step.step ||
+                        step.title ||
+                        step.description ||
+                        step.text ||
+                        ''
+                    ).toString().trim();
+                }
+                return '';
+            })
+            .filter(Boolean);
+    }
+
+    if (typeof stepsInput === 'string') {
+        return stepsInput
+            .split(/\r?\n+/)
+            .map((line) => line.replace(/^\s*[-*\d.]+\s*/, '').trim())
+            .filter(Boolean);
+    }
+
+    return [];
+};
+
+const hasFallbackPlanContent = (planDoc) => {
+    const skills = Array.isArray(planDoc?.skills) ? planDoc.skills : [];
+    if (!skills.length) return false;
+
+    return skills.some((skill) => {
+        const summary = (skill?.summary || '').toString();
+        const roadmap = normalizeRoadmapSteps(
+            skill?.roadmap || skill?.roadmap_steps || skill?.steps || skill?.curriculum_topics
+        );
+
+        const hasFallbackSummary = summary.includes(FALLBACK_SUMMARY_MARKER);
+        const hasFallbackRoadmap =
+            roadmap.length === 3 &&
+            roadmap[0]?.toLowerCase().includes('absolute basics') &&
+            roadmap[1]?.toLowerCase().includes('documentation') &&
+            roadmap[2]?.toLowerCase().includes('portfolio');
+
+        return hasFallbackSummary || hasFallbackRoadmap;
+    });
+};
+
 const normalizeRoadmapSkills = (skills = []) => {
     if (!Array.isArray(skills)) return [];
 
@@ -51,14 +103,42 @@ const normalizeRoadmapSkills = (skills = []) => {
             ? item.github_repos
             : githubItems;
 
+        const normalizedSummary =
+            item.summary ||
+            item.description ||
+            item.overview ||
+            item.plan_summary ||
+            item.explanation ||
+            '';
+
+        const normalizedRoadmap = normalizeRoadmapSteps(
+            item.roadmap ||
+            item.roadmap_steps ||
+            item.steps ||
+            item.curriculum_topics ||
+            item.learning_path
+        );
+
+        const normalizedTotalDays = Number(
+            item.total_days ??
+            item.duration_days ??
+            item.days ??
+            item.estimated_days ??
+            0
+        );
+
         return {
             ...item,
             skill: item.skill || item.keyword || item.name || 'Unnamed Skill',
             youtube_url: normalizedYoutubeUrl,
             github_url: normalizedGithubUrl,
             github_repos: normalizedGithubRepos,
+            summary: normalizedSummary,
             resources,
-            roadmap: Array.isArray(item.roadmap) ? item.roadmap : []
+            roadmap: normalizedRoadmap,
+            total_days: Number.isFinite(normalizedTotalDays)
+                ? Number(normalizedTotalDays.toFixed(2))
+                : 0
         };
     });
 };
@@ -83,10 +163,14 @@ exports.generateRoadmap = async (req, res, next) => {
                 jobId 
             });
             if (existingPlan) {
+                if (hasFallbackPlanContent(existingPlan)) {
+                    console.log('[Roadmap] Existing plan has fallback content; regenerating fresh roadmap.');
+                } else {
                 return res.status(200).json({
                     status: 'success',
                     data: existingPlan
                 });
+                }
             }
         } catch (err) {
             console.log('Error checking existing plan, continuing...');
