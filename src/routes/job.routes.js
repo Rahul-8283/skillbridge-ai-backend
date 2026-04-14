@@ -24,4 +24,7 @@ router.post('/post', protect, restrictTo('provider'), jobController.createJob);
 router.put('/:id', protect, restrictTo('provider'), jobController.updateJob);
 router.delete('/:id', protect, restrictTo('provider'), jobController.deleteJob);
 
+// Update Job Application Status (providers)
+router.put('/applications/:appId/status', protect, restrictTo('provider'), jobController.updateApplicationStatus);
+
 module.exports = router;

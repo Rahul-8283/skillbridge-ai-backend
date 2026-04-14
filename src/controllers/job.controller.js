@@ -113,11 +113,6 @@ exports.updateJob = async (req, res, next) => {
     if (newStatus && newStatus !== currentStatus) {
       console.log(`Status change attempt: ${currentStatus} → ${newStatus}`);
       
-      // Closed jobs cannot be reopened by just changing dates
-      if (currentStatus === 'closed' && newStatus === 'open') {
-        return next(new AppError('Closed jobs cannot be reopened. Please create a new job posting instead.', 400));
-      }
-
       // Only allow: open → closed (when filled or employer ends it)
       if (!['open', 'closed', 'paused'].includes(newStatus)) {
         return next(new AppError('Invalid job status. Allowed: open, closed, paused', 400));
@@ -133,18 +128,6 @@ exports.updateJob = async (req, res, next) => {
       // Cannot set expiration date in the past
       if (newDate < now) {
         return next(new AppError('Expiration date cannot be in the past', 400));
-      }
-
-      // Cannot extend closed jobs (even with new dates)
-      if (job.status === 'closed' && newDate > currentExpiration) {
-        return next(new AppError('Cannot extend expiration date of a closed job', 400));
-      }
-
-      // Can only extend by max 90 days from original expiration
-      const maxExtension = new Date(currentExpiration);
-      maxExtension.setDate(maxExtension.getDate() + 90);
-      if (newDate > maxExtension) {
-        return next(new AppError('Cannot extend job posting by more than 90 days', 400));
       }
     }
 
@@ -295,6 +278,38 @@ exports.getJobApplications = async (req, res, next) => {
     res.status(200).json({
       status: 'success',
       data: applications
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.updateApplicationStatus = async (req, res, next) => {
+  try {
+    const { appId } = req.params;
+    const { status } = req.body;
+    
+    // Ensure status is valid
+    if (!['pending', 'accepted', 'rejected'].includes(status)) {
+      return next(new AppError('Invalid status', 400));
+    }
+    
+    // Find application and ensure the current user is the job provider
+    const application = await JobApplication.findById(appId).populate('jobId');
+    if (!application) {
+      return next(new AppError('Application not found', 404));
+    }
+    
+    if (application.jobId.postedBy.toString() !== req.user._id.toString()) {
+       return next(new AppError('You are not authorized to update this application', 403));
+    }
+    
+    application.status = status;
+    await application.save();
+    
+    res.status(200).json({
+      status: 'success',
+      data: application
     });
   } catch (err) {
     next(err);

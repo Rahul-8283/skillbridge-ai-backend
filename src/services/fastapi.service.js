@@ -80,3 +80,13 @@ exports.generateRoadmap = async (roadmapData) => {
     throw err;
   }
 };
+
+exports.matchCandidates = async (jobId, threshold = 0.0) => {
+  try {
+    const response = await fastapi.get(`/match-candidates/${jobId}?threshold=${threshold}`);
+    return response.data;
+  } catch (err) {
+    console.error('FastAPI matchCandidates error:', err.response?.data || err.message);
+    throw err;
+  }
+};
