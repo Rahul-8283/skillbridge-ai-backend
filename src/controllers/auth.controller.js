@@ -185,7 +185,10 @@ exports.googleCallback = async (req, res, next) => {
       maxAge: 1000 * 60 * 60 * 24 * 30,
     });
 
-    const clientUrl = process.env.CLIENT_URL_DEV || "http://localhost:5173";
+    // Use production URL if in production, otherwise use development URL
+    const clientUrl = process.env.NODE_ENV === 'production' 
+      ? process.env.CLIENT_URL_PRO 
+      : (process.env.CLIENT_URL_DEV || "http://localhost:5173");
 
     // Redirect to a frontend callback page that will handle the token and role routing
     return res.redirect(`${clientUrl}/oauth-callback?token=${accessToken}`);

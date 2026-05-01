@@ -14,7 +14,12 @@ router.post('/logout', authController.logout);
 router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'], session: false }));
 router.get(
   '/google/callback',
-  passport.authenticate('google', { session: false, failureRedirect: `${process.env.CLIENT_URL_DEV}/login` }),
+  passport.authenticate('google', { 
+    session: false, 
+    failureRedirect: process.env.NODE_ENV === 'production' 
+      ? `${process.env.CLIENT_URL_PRO}/login` 
+      : `${process.env.CLIENT_URL_DEV}/login` 
+  }),
   authController.googleCallback
 );
 
