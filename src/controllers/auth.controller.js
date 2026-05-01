@@ -167,3 +167,88 @@ exports.logout = async (req, res, next) => {
     next(err);
   }
 };
+
+exports.googleCallback = async (req, res, next) => {
+  try {
+    const user = req.user;
+    
+    // Generate tokens
+    const payload = { id: user._id, role: user.role };
+    const { accessToken, refreshToken } = generateTokens(payload);
+
+    await redisClient.set(user._id.toString(), refreshToken, 'EX', 60 * 60 * 24 * 30);
+
+    res.cookie('refreshToken', refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax', // For OAuth redirects, 'lax' is generally needed, or handle frontend logic appropriately.
+      maxAge: 1000 * 60 * 60 * 24 * 30,
+    });
+
+    const clientUrl = process.env.CLIENT_URL_DEV || "http://localhost:5173";
+
+    // Redirect to a frontend callback page that will handle the token and role routing
+    return res.redirect(`${clientUrl}/oauth-callback?token=${accessToken}`);
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.setRole = async (req, res, next) => {
+  try {
+    const { role } = req.body;
+    
+    if (!['seeker', 'provider'].includes(role)) {
+      return next(new AppError('Invalid role', 400));
+    }
+
+    const user = await User.findById(req.user.id);
+    
+    if (!user) {
+      return next(new AppError('User not found', 404));
+    }
+
+    if (user.role !== 'pending') {
+      return next(new AppError('Role already set', 400));
+    }
+
+    user.role = role;
+    await user.save();
+
+    // Re-issue tokens with the new role
+    const payload = { id: user._id, role: user.role };
+    const { accessToken, refreshToken } = generateTokens(payload);
+
+    await redisClient.set(user._id.toString(), refreshToken, 'EX', 60 * 60 * 24 * 30);
+
+    res.cookie('refreshToken', refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 1000 * 60 * 60 * 24 * 30,
+    });
+
+    res.status(200).json({
+      status: 'success',
+      accessToken,
+      user,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.getMe = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return next(new AppError('User not found', 404));
+    }
+    res.status(200).json({
+      status: 'success',
+      user,
+    });
+  } catch (err) {
+    next(err);
+  }
+};

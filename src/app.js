@@ -34,6 +34,11 @@ app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 app.use(cookieParser());
 app.use(rateLimiter);
 
+// Initialize Passport
+require('./config/passport');
+const passport = require('passport');
+app.use(passport.initialize());
+
 // API Routes
 app.use('/api', mainRouter);
 

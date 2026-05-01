@@ -13,14 +13,22 @@ const userSchema = new mongoose.Schema({
   },
   password: {
     type: String,
-    required: [true, 'Please provide a password'],
     minlength: 6,
     select: false,
   },
   role: {
     type: String,
-    enum: ['seeker', 'provider'],
+    enum: ['seeker', 'provider', 'pending'],
     required: true,
+    default: 'pending'
+  },
+  authProvider: {
+    type: String,
+    enum: ['local', 'google'],
+    default: 'local'
+  },
+  googleId: {
+    type: String
   },
   createdAt: {
     type: Date,
