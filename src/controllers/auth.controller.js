@@ -187,6 +187,12 @@ exports.googleCallback = async (req, res, next) => {
 
     // Use production URL if in production, otherwise use development URL
     const clientUrl = process.env.MODE_F === 'production' ? process.env.CLIENT_URL_PRO : process.env.CLIENT_URL_DEV;
+    
+    console.log('🌐 Google Callback Redirect:');
+    console.log('   MODE_F:', process.env.MODE_F);
+    console.log('   CLIENT_URL_PRO:', process.env.CLIENT_URL_PRO);
+    console.log('   CLIENT_URL_DEV:', process.env.CLIENT_URL_DEV);
+    console.log('   Redirecting to:', `${clientUrl}/oauth-callback?token=${accessToken}`);
 
     // Redirect to a frontend callback page that will handle the token and role routing
     return res.redirect(`${clientUrl}/oauth-callback?token=${accessToken}`);
