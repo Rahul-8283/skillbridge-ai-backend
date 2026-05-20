@@ -137,22 +137,24 @@ const normalizeRoadmapSkills = (skills = []) => {
 
 exports.generateRoadmap = async (req, res, next) => {
     try {
-        const { userId, jobId, hoursPerDay = 2 } = req.body;
+        const { userId: bodyUserId, jobId, hoursPerDay = 2 } = req.body;
+        const authenticatedUserId = req.user?._id?.toString();
+        const effectiveUserId = authenticatedUserId || bodyUserId;
         let existingPlanDoc = null;
         
-        if (!userId || !jobId) {
+        if (!effectiveUserId || !jobId) {
             return next(new AppError('userId and jobId are required to generate roadmap', 400));
         }
 
         // Validate userId is a valid ObjectId
-        if (!mongoose.Types.ObjectId.isValid(userId)) {
+        if (!mongoose.Types.ObjectId.isValid(effectiveUserId)) {
             return next(new AppError('Invalid userId format', 400));
         }
 
         // Check if a plan already exists for this job
         try {
             const existingPlan = await LearningPlan.findOne({ 
-                userId: new mongoose.Types.ObjectId(userId), 
+                userId: new mongoose.Types.ObjectId(effectiveUserId), 
                 jobId 
             });
             if (existingPlan) {
@@ -183,7 +185,7 @@ exports.generateRoadmap = async (req, res, next) => {
         let roadmapData;
         try {
             roadmapData = await fastapiService.generateRoadmap({
-                user_id: userId,
+                user_id: effectiveUserId,
                 job_id: jobId,
                 hours_per_day: hoursPerDay
             });
@@ -212,7 +214,7 @@ exports.generateRoadmap = async (req, res, next) => {
 
         const normalizedOverallDays = Number(roadmapData.overall_days ?? roadmapData.overallDays ?? 0);
         const planPayload = {
-            userId: new mongoose.Types.ObjectId(userId),
+            userId: new mongoose.Types.ObjectId(effectiveUserId),
             jobId,
             title: `Learning Plan for ${jobTitle}`,
             targetRole: roadmapData.target_role || roadmapData.targetRole || jobTitle,
@@ -238,18 +240,22 @@ exports.generateRoadmap = async (req, res, next) => {
 
 exports.getLearningPlans = async (req, res, next) => {
     try {
-        const { userId } = req.params;
+        const paramUserId = req.params.userId;
+        const authenticatedUserId = req.user?._id?.toString();
+        const effectiveUserId = mongoose.Types.ObjectId.isValid(paramUserId)
+            ? paramUserId
+            : authenticatedUserId;
         
-        if (!userId) {
+        if (!effectiveUserId) {
             return next(new AppError('userId is required', 400));
         }
 
         // Validate userId is a valid ObjectId
-        if (!mongoose.Types.ObjectId.isValid(userId)) {
+        if (!mongoose.Types.ObjectId.isValid(effectiveUserId)) {
             return next(new AppError('Invalid userId format', 400));
         }
 
-        const plans = await LearningPlan.find({ userId: new mongoose.Types.ObjectId(userId) }).sort('-createdAt');
+        const plans = await LearningPlan.find({ userId: new mongoose.Types.ObjectId(effectiveUserId) }).sort('-createdAt');
 
         const plansToRepair = [];
         for (const plan of plans) {
