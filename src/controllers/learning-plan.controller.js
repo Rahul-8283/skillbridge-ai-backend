@@ -96,7 +96,7 @@ const normalizeRoadmapSkills = (skills = []) => {
             item.overview ||
             item.plan_summary ||
             item.explanation ||
-            '';
+            `Master the fundamentals of ${item.skill || 'this skill'} through structured learning and hands-on practice.`;
 
         const normalizedRoadmap = normalizeRoadmapSteps(
             item.roadmap ||
@@ -213,11 +213,15 @@ exports.generateRoadmap = async (req, res, next) => {
         const normalizedSkills = normalizeRoadmapSkills(roadmapData.skills);
 
         const normalizedOverallDays = Number(roadmapData.overall_days ?? roadmapData.overallDays ?? 0);
+        
+        // Get target role from FastAPI response or use job title as fallback
+        let targetRole = roadmapData.target_role || roadmapData.targetRole || jobTitle;
+        
         const planPayload = {
             userId: new mongoose.Types.ObjectId(effectiveUserId),
             jobId,
-            title: `Learning Plan for ${jobTitle}`,
-            targetRole: roadmapData.target_role || roadmapData.targetRole || jobTitle,
+            title: `Learning Plan for ${targetRole}`,
+            targetRole: targetRole,
             overallDays: Number.isFinite(normalizedOverallDays) ? Number(normalizedOverallDays.toFixed(2)) : 0,
             hoursPerDay,
             skills: normalizedSkills,
