@@ -57,12 +57,24 @@ exports.matchJobs = async (userId, filePath) => {
       timeout: 180000,
     });
     
+    // Handle both successful matches and database connection warnings
+    if (response.data.warning) {
+      console.warn('⚠️ FastAPI warning:', response.data.warning);
+    }
+    
     return response.data;
   } catch (err) {
     const errorMsg = err.response?.data?.detail || err.message;
     
-    if (errorMsg.includes('NoneType') || errorMsg.includes('session')) {
+    if (errorMsg.includes('NoneType') || errorMsg.includes('session') || errorMsg.includes('database')) {
       console.error('❌ Neo4j database connection issue - Database may be offline or credentials incorrect');
+      // Return graceful response instead of throwing
+      return {
+        user_id: userId,
+        matches: [],
+        warning: 'Database service is temporarily unavailable. Your resume was processed but job matching will be available once the service is restored.',
+        status: 'partial'
+      };
     } else {
       console.error('❌ FastAPI matching failed:', errorMsg);
     }
