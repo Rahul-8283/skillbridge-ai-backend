@@ -130,7 +130,7 @@ const normalizeRoadmapSkills = (skills = []) => {
             total_days: Number.isFinite(normalizedTotalDays)
                 ? Number(normalizedTotalDays.toFixed(2))
                 : 0,
-            resources
+            resources: resources.length > 0 ? resources : []
         };
     });
 };
@@ -189,6 +189,8 @@ exports.generateRoadmap = async (req, res, next) => {
                 job_id: jobId,
                 hours_per_day: hoursPerDay
             });
+            console.log('✅ FastAPI Response received!');
+            console.log('📊 Raw FastAPI Response:', JSON.stringify(roadmapData, null, 2).substring(0, 1000));
         } catch (err) {
             console.error('FastAPI roadmap generation failed:', err.response?.data || err.message);
             const upstream = extractUpstreamError(err, 'Failed to generate learning roadmap.');
@@ -211,6 +213,9 @@ exports.generateRoadmap = async (req, res, next) => {
 
         // Map and Save to MongoDB
         const normalizedSkills = normalizeRoadmapSkills(roadmapData.skills);
+        
+        console.log('📊 FastAPI Response Skills:', JSON.stringify(roadmapData.skills, null, 2));
+        console.log('📊 Normalized Skills:', JSON.stringify(normalizedSkills, null, 2));
 
         const normalizedOverallDays = Number(roadmapData.overall_days ?? roadmapData.overallDays ?? 0);
         
