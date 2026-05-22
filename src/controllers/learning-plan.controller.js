@@ -189,8 +189,6 @@ exports.generateRoadmap = async (req, res, next) => {
                 job_id: jobId,
                 hours_per_day: hoursPerDay
             });
-            console.log('✅ FastAPI Response received!');
-            console.log('📊 Raw FastAPI Response:', JSON.stringify(roadmapData, null, 2).substring(0, 1000));
         } catch (err) {
             console.error('FastAPI roadmap generation failed:', err.response?.data || err.message);
             const upstream = extractUpstreamError(err, 'Failed to generate learning roadmap.');
@@ -213,10 +211,6 @@ exports.generateRoadmap = async (req, res, next) => {
 
         // Map and Save to MongoDB
         const normalizedSkills = normalizeRoadmapSkills(roadmapData.skills);
-        
-        console.log('📊 FastAPI Response Skills:', JSON.stringify(roadmapData.skills, null, 2));
-        console.log('📊 Normalized Skills:', JSON.stringify(normalizedSkills, null, 2));
-
         const normalizedOverallDays = Number(roadmapData.overall_days ?? roadmapData.overallDays ?? 0);
         
         // Get target role from FastAPI response or use job title as fallback
